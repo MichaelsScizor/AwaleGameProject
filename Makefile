@@ -24,6 +24,12 @@ clean:
 
 .PHONY: all clean
 
+RUN make before running server.
+
+./awale_server 4242 - to run server
+
+./awale_client 127.0.0.1 4242 - to run client
+
 Commands: LIST - Lists users that are currently online
 CHALLENGE user - Challenges a user to a game
 ACCEPT user - Accept a user's challenge
