@@ -23,23 +23,3 @@ clean:
 	rm -f *.o awale_server awale_client
 
 .PHONY: all clean
-
-RUN make before running server.
-
-./awale_server 4242 - to run server
-
-./awale_client 127.0.0.1 4242 - to run client
-
-Commands: LIST - Lists users that are currently online
-CHALLENGE user - Challenges a user to a game
-ACCEPT user - Accept a user's challenge
-REFUSE user - Refuse a user's challenge
-MOVE pit(0-5) - Make a move from pit 0-5 (left to right for P1 and right to left P2)
-GAMES - Shows a list of live games with their match ID
-WATCH id - Watch the match of the id provided
-SAY user message - Send the user a private message if their profile is public
-BIO text - Set your bio
-GETBIO user - Get the bio of a diff user
-FRIEND user - Friend the user
-PRIVATE on/off - Set your privacy to public or private affecting if random people can join/spectate your games
-QUIT - Quit the server

@@ -1,3 +1,4 @@
+/* Defining all global variable and including all necessary libraries*/
 #define _POSIX_C_SOURCE 200809L
 #include "awale.h"
 #include <arpa/inet.h>
@@ -19,28 +20,31 @@
 #define BIO_LEN 256
 #define LINE_LEN 1024
 
+/*making a structure for client including all the variables needed for a client to exist*/
 typedef struct {
     int fd;
     char name[NAME_LEN];
     char bio[BIO_LEN];
-    char friends[256]; /* comma-separated usernames */
+    char friends[256]; /* comma-separated usernames with 256 max friends */
     int private_mode;
     int pending_from;
     char input[LINE_LEN];
     size_t used;
 } Client;
 
+/*making the structure for a match and what is needed*/
 typedef struct {
     int active, id, a, b;
     int watchers[MAX_CLIENTS], watcher_count;
-    int private_mode;
+    int private_mode; /*checks if match is private*/
     AwaleGame game;
 } Match;
 
-static Client clients[MAX_CLIENTS];
-static Match games[MAX_GAMES];
-static int next_game_id = 1;
+static Client clients[MAX_CLIENTS]; /*set max clients*/
+static Match games[MAX_GAMES];/*set max current games*/
+static int next_game_id = 1;/*sets first match id to 1*/
 
+/*makes sending formatted messages over the server much easier*/
 static void sendf(int fd, const char *fmt, ...)
 {
     char buf[4096];
@@ -54,12 +58,14 @@ static void sendf(int fd, const char *fmt, ...)
     }
 }
 
+/*notify the client they've been connected*/
 static void notify_client(int idx, const char *msg)
 {
     if (idx >= 0 && idx < MAX_CLIENTS && clients[idx].fd >= 0)
         sendf(clients[idx].fd, "%s\n", msg);
 }
 
+/*find the user of the client*/
 static int find_user(const char *name)
 {
     for (int i = 0; i < MAX_CLIENTS; ++i)
@@ -67,6 +73,7 @@ static int find_user(const char *name)
     return -1;
 }
 
+/*find the game with the ID provided*/
 static int find_game(int id)
 {
     for (int i = 0; i < MAX_GAMES; ++i)
@@ -74,6 +81,7 @@ static int find_game(int id)
     return -1;
 }
 
+/*Checks if the user is playing a game*/
 static int user_game(int user)
 {
     for (int i = 0; i < MAX_GAMES; ++i)
@@ -81,6 +89,7 @@ static int user_game(int user)
     return -1;
 }
 
+/* sets up the board text and the pits with X number of seeds in it*/
 static void board_text(const Match *m, char *out, size_t cap)
 {
     size_t n = 0;
@@ -95,6 +104,7 @@ static void board_text(const Match *m, char *out, size_t cap)
     (void)snprintf(out+n, cap-n, "\n");
 }
 
+/*sends current state of game to both players and everyone watching*/
 static void broadcast_match(Match *m)
 {
     char text[1024];
@@ -105,6 +115,7 @@ static void broadcast_match(Match *m)
         notify_client(m->watchers[i], text);
 }
 
+/*checks if the game owner and the watcher is friends*/
 static int is_friend(int owner, int watcher)
 {
     char copy[256];
@@ -114,7 +125,7 @@ static int is_friend(int owner, int watcher)
         if (strcmp(p, clients[watcher].name) == 0) return 1;
     return 0;
 }
-
+/*saves the game to games.log and closes it, otherwise it just prints the result*/
 static void save_match(const Match *m)
 {
     FILE *f = fopen("games.log", "a");
@@ -127,9 +138,10 @@ static void save_match(const Match *m)
     fclose(f);
 }
 
+/*ends game and notifies all players and spectators that it's finished*/
 static void finish_match(Match *m)
 {
-    save_match(m);
+    save_match(m); /*saves match*/
     char msg[256];
     snprintf(msg, sizeof(msg), "GAME %d OVER: %s (%d) - %s (%d).",
         m->id, clients[m->a].name, m->game.score[0],
@@ -140,6 +152,7 @@ static void finish_match(Match *m)
     m->active = 0;
 }
 
+/* function to recognise which command is being used*/
 static void command(int u, char *line)
 {
     char *save = NULL;
@@ -278,22 +291,25 @@ static void command(int u, char *line)
 
 int main(int argc, char **argv)
 {
+    /*if more or less than 2 arguments are added an error is provided*/
     if (argc != 2) { fprintf(stderr, "Usage: %s port\n", argv[0]); return 1; }
+    /*create signal*/
     signal(SIGPIPE, SIG_IGN);
     srand((unsigned)time(NULL));
     for (int i = 0; i < MAX_CLIENTS; ++i) clients[i].fd = -1;
-
+    /*create a listener*/
     int listener = socket(AF_INET, SOCK_STREAM, 0);
     if (listener < 0) { perror("socket"); return 1; }
     int yes = 1; setsockopt(listener, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(yes));
     struct sockaddr_in addr; memset(&addr, 0, sizeof(addr));
     addr.sin_family = AF_INET; addr.sin_addr.s_addr = htonl(INADDR_ANY);
     addr.sin_port = htons((unsigned short)atoi(argv[1]));
+    /*bind the client to the listener(port)*/
     if (bind(listener, (struct sockaddr *)&addr, sizeof(addr)) < 0 || listen(listener, 16) < 0) {
         perror("bind/listen"); close(listener); return 1;
     }
     printf("Awale server listening on port %s\n", argv[1]);
-
+    /*infinite loop so server keeps listening*/
     for (;;) {
         fd_set readfds; FD_ZERO(&readfds); FD_SET(listener, &readfds); int maxfd = listener;
         for (int i = 0; i < MAX_CLIENTS; ++i) if (clients[i].fd >= 0) {
@@ -301,16 +317,22 @@ int main(int argc, char **argv)
         }
         if (select(maxfd + 1, &readfds, NULL, NULL, NULL) < 0) { if (errno == EINTR) continue; perror("select"); break; }
         if (FD_ISSET(listener, &readfds)) {
+            /*accept the incoming connection*/
             int fd = accept(listener, NULL, NULL);
             if (fd >= 0) {
+                /*find available slot */
                 int slot = -1; for (int i = 0; i < MAX_CLIENTS; ++i) if (clients[i].fd < 0) { slot = i; break; }
+                /*Check whether the server has reached its client limit*/
                 if (slot < 0) { send(fd, "ERR server full\n", 16, 0); close(fd); }
+                /*send a welcome message*/
                 else { memset(&clients[slot], 0, sizeof(clients[slot])); clients[slot].fd = fd; clients[slot].pending_from = -1; sendf(fd, "Welcome. Register with: REGISTER username. After registering type HELP for commands!\n"); }
             }
         }
+        /*Loop through all clients to check whether they have sent data */
         for (int i = 0; i < MAX_CLIENTS; ++i) if (clients[i].fd >= 0 && FD_ISSET(clients[i].fd, &readfds)) {
             char ch;
             ssize_t n = recv(clients[i].fd, &ch, 1, 0);
+            /*check if client disconnected or error occured and close the socket and mark it as available*/
             if (n <= 0) {
                 close(clients[i].fd); clients[i].fd = -1;
                 for (int g = 0; g < MAX_GAMES; ++g) if (games[g].active && (games[g].a == i || games[g].b == i)) {
@@ -320,6 +342,7 @@ int main(int argc, char **argv)
                 }
                 continue;
             }
+            /*if there's a newline client has finished sending a command*/
             if (ch == '\n') {
                 clients[i].input[clients[i].used] = '\0';
                 command(i, clients[i].input);
@@ -329,6 +352,6 @@ int main(int argc, char **argv)
             } else clients[i].used = 0;
         }
     }
-    close(listener);
+    close(listener); /*close the listening socket*/
     return 0;
 }

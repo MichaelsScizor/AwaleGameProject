@@ -1,7 +1,9 @@
+/*include necessary libraries*/
 #include "awale.h"
 #include <stdio.h>
 #include <string.h>
 
+/*initialise all the pits for the game so they have 4 seeds*/
 void awale_init(AwaleGame *g)
 {
     memset(g, 0, sizeof(*g));
@@ -9,7 +11,7 @@ void awale_init(AwaleGame *g)
     g->turn = 0;
     g->winner = -2;
 }
-
+/*check every pit has seeds*/
 int awale_has_seeds(const AwaleGame *g, int player)
 {
     int first = player == 0 ? 0 : 6;
@@ -105,7 +107,7 @@ int awale_move(AwaleGame *g, int player, int pit)
     return 1;
 }
 
-
+/*prints the current game state*/
 void awale_print(const AwaleGame *g)
 {
     printf("       Player 2\n");
